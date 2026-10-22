@@ -388,8 +388,121 @@
     return gem.name + ': ' + (parts.length ? parts.join(' · ') : gem.desc);
   }
 
+  /* ================= Animation rối khớp: toán POSE THUẦN =================
+     poseHumanoid(inp) -> { parts: {torso|head|arm_l|arm_r|leg_l|leg_r|tail_a|tail_b: {x,y,z}}, bob }
+     Góc xoay Euler (rad) TUYỆT ĐỐI cho từng node khớp của model GLB (js/gltf-lite.js),
+     gồm cả tư thế gốc theo loài (vd người: tay T-pose phải hạ xuống bằng góc z gốc).
+     Quy ước trục (nhân vật nhìn về +Z, pivot tại khớp):
+       xoay X dương = phần dưới pivot ngả về SAU (-Z) với chi rủ xuống / đỉnh ngả về
+       TRƯỚC (+Z) với phần thân trên pivot (torso/head).
+       Phía 'r' = +X (phía kiếm vung của người chơi), 'l' = -X.
+     inp: { state:'idle'|'walk', t: giây (đồng hồ cho thở/lướt), phase: pha bước (rad,
+       tích lũy theo quãng đường — game.js cộng dồn, KHÔNG dùng đồng hồ tường),
+       speed01: 0..1, attackT: giây kể từ lúc ra đòn (-1 = không), hitT: giây kể từ
+       lúc trúng đòn (-1 = không), species:'humanoid'|'goblin'|'archer'|'fog' }.
+     Mọi góc đều bị KẸP biên an toàn và ép hữu hạn — input rác (NaN) tự về mặc định. */
+  var POSE_ATTACK_DUR = 0.35, POSE_HIT_DUR = 0.25;
+  var POSE_LIM = { x: 2.4, y: 1.4, z: 2.8 };
+  function pFin(v, d) { return (typeof v === 'number' && isFinite(v)) ? v : d; }
+  function pClamp(v, m) { return Math.max(-m, Math.min(m, v)); }
+  function pSmooth(u) { u = Math.max(0, Math.min(1, u)); return u * u * (3 - 2 * u); }
+  function pEaseOut(u) { u = Math.max(0, Math.min(1, u)); return 1 - Math.pow(1 - u, 3); }
+  function poseHumanoid(inp) {
+    inp = inp || {};
+    var species = ['humanoid', 'goblin', 'archer', 'fog'].indexOf(inp.species) !== -1 ? inp.species : 'humanoid';
+    var fog = species === 'fog';
+    var t = pFin(inp.t, 0), phase = pFin(inp.phase, 0);
+    var speed01 = Math.max(0, Math.min(1, pFin(inp.speed01, 0)));
+    var walking = inp.state === 'walk' && speed01 > 0.02;
+    var attackT = pFin(inp.attackT, -1), hitT = pFin(inp.hitT, -1);
+    var P = {};
+    ['torso', 'head', 'arm_l', 'arm_r', 'leg_l', 'leg_r', 'tail_a', 'tail_b'].forEach(function (k) { P[k] = { x: 0, y: 0, z: 0 }; });
+    var bob = 0;
+    // Tư thế gốc theo loài: góc z hạ tay. Người bị nướng ở T-pose (tay ngang) nên phải
+    // hạ ~70°; goblin/archer/boss tay đã rủ sẵn trong hình học nên chỉ chỉnh nhẹ.
+    var hangZ = species === 'humanoid' ? 1.22 : (fog ? 0.12 : 0.18);
+    P.arm_r.z = -hangZ; P.arm_l.z = hangZ;
+
+    if (fog) {
+      // LƯỚT: không chân — thân lắc theo đuôi 2 đốt uốn lệch pha, tay rủ đung đưa.
+      var swayF = walking ? phase : t * 1.3;
+      var amp = walking ? (0.6 + 0.4 * speed01) : 0.55;
+      P.tail_a.z = 0.15 * amp * Math.sin(swayF);
+      P.tail_a.x = 0.05 * Math.sin(t * 0.9);
+      P.tail_b.z = 0.20 * amp * Math.sin(swayF - 1.05); // đốt 2 trễ pha — đuôi uốn sóng
+      P.tail_b.x = 0.04 * Math.sin(t * 0.9 - 0.7);
+      P.torso.z = 0.05 * Math.sin(swayF - 0.5);
+      P.torso.x = walking ? 0.13 * speed01 : 0.03 * Math.sin(t * 1.3);
+      P.arm_r.x = 0.10 * Math.sin(t * 1.3 + 1.0) + (walking ? 0.28 * speed01 : 0);
+      P.arm_l.x = 0.10 * Math.sin(t * 1.3 + 1.6) + (walking ? 0.28 * speed01 : 0);
+      P.head.x = -P.torso.x * 0.6;
+      bob = 0.05 * Math.sin(t * 1.3) + (walking ? Math.abs(Math.sin(phase)) * 0.03 : 0);
+    } else if (walking) {
+      var legAmp = 0.58 * (0.35 + 0.65 * speed01);
+      var armAmp = 0.42 * (0.30 + 0.70 * speed01);
+      var sPh = Math.sin(phase);
+      P.leg_r.x = sPh * legAmp;
+      P.leg_l.x = -sPh * legAmp;                 // 2 chân lệch pha π tuyệt đối
+      P.arm_r.x = -sPh * armAmp;                 // tay ngược pha với chân CÙNG phía
+      P.arm_l.x = sPh * armAmp;
+      P.torso.x = 0.06 + 0.10 * speed01;         // nghiêng trước theo tốc độ
+      P.torso.z = 0.035 * Math.sin(phase);
+      P.head.x = -P.torso.x * 0.7 + 0.03 * Math.sin(phase * 2);
+      bob = Math.abs(Math.sin(phase)) * 0.035 * (0.4 + 0.6 * speed01); // nhún 2 nhịp / chu kỳ bước
+    } else {
+      // ĐỨNG YÊN: thở — thân nhún sin rất nhỏ, tay lắc micro, đầu giữ ổn định.
+      var br = Math.sin(t * 1.6);
+      P.torso.x = 0.02 + 0.018 * br;
+      P.arm_r.x = 0.035 * Math.sin(t * 1.6 + 0.5);
+      P.arm_l.x = 0.035 * Math.sin(t * 1.6 + 0.9);
+      P.head.x = -0.012 * br;
+      P.head.y = 0.03 * Math.sin(t * 0.23);
+    }
+
+    // ĐÒN ĐÁNH: cửa sổ POSE_ATTACK_DUR giây — đường cong nhanh vào (easeOut 45% đầu),
+    // chậm ra (smoothstep trả về 0 ở cuối cửa sổ).
+    if (attackT >= 0 && attackT < POSE_ATTACK_DUR) {
+      var u = attackT / POSE_ATTACK_DUR;
+      var A = u < 0.45 ? pEaseOut(u / 0.45) : 1 - pSmooth((u - 0.45) / 0.55);
+      if (species === 'archer') {
+        var draw = u < 0.6 ? u / 0.6 : (u < 0.85 ? 1 : 1 - (u - 0.85) / 0.15);
+        P.arm_l.x += -0.62 * A;                  // tay cung giơ về trước, giữ chắc
+        P.arm_r.x += 0.85 * draw;                // tay dây kéo về sau rồi THẢ ở 85%
+        P.arm_r.z += -0.15 * draw;
+        P.torso.y += -0.15 * A;
+      } else if (fog) {
+        P.arm_r.x += -1.15 * A; P.arm_l.x += -1.15 * A;   // cả 2 tay vung lên rộng
+        P.arm_r.z += -0.50 * A; P.arm_l.z += 0.50 * A;
+        P.torso.x += 0.22 * A;
+        P.tail_a.z += 0.30 * Math.sin(u * Math.PI);
+        P.tail_b.z += 0.35 * Math.sin(u * Math.PI);
+      } else {
+        var sw = species === 'goblin' ? 1.5 : 1.85;
+        P.arm_r.x += -sw * A;                    // tay kiếm chém về trước
+        P.arm_r.z += 0.55 * A;
+        P.torso.y += 0.30 * A;                   // thân vặn theo đòn
+        P.head.x += -0.08 * A;
+      }
+    }
+    // TRÚNG ĐÒN: giật lùi + đầu lắc, decay mũ trong POSE_HIT_DUR giây.
+    if (hitT >= 0 && hitT < POSE_HIT_DUR) {
+      var D = Math.exp(-hitT * 9);
+      P.torso.x += (fog ? -0.20 : -0.38) * D;
+      P.head.x += 0.30 * D;
+      P.arm_r.z += -0.30 * D; P.arm_l.z += 0.30 * D;
+    }
+    // Kẹp biên + ép hữu hạn cho MỌI đầu ra.
+    for (var k in P) {
+      P[k].x = pClamp(pFin(P[k].x, 0), POSE_LIM.x);
+      P[k].y = pClamp(pFin(P[k].y, 0), POSE_LIM.y);
+      P[k].z = pClamp(pFin(P[k].z, 0), POSE_LIM.z);
+    }
+    return { parts: P, bob: pFin(bob, 0) };
+  }
+
   return {
     SAVE_VERSION: SAVE_VERSION, SAVE_KEY: SAVE_KEY, VILLAGE: VILLAGE, BASE_STATS: BASE_STATS,
+    poseHumanoid: poseHumanoid, POSE_ATTACK_DUR: POSE_ATTACK_DUR, POSE_HIT_DUR: POSE_HIT_DUR,
     createResources: createResources, canAfford: canAfford, spend: spend, add: add, hasNegative: hasNegative,
     computeStats: computeStats, calcDamage: calcDamage, calcIncomingDamage: calcIncomingDamage,
     aimPoint: aimPoint, aimDir: aimDir, AIM_MAX_FLIGHT: AIM_MAX_FLIGHT,

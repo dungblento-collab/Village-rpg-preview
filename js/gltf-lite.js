@@ -11,7 +11,15 @@
    - parseGLB(buffer): THUẦN dữ liệu (không THREE, không DOM) → chạy được trong Node để test.
    - buildGroup(THREE, parsed): dựng THREE.Group (MeshStandardMaterial, flatShading vì file
      không chứa NORMAL — pháp tuyến mặt do shader tính, đúng chất low-poly phẳng).
-   Nạp qua: window.GLTF_LITE (trình duyệt) hoặc module.exports (Node test). */
+   Nạp qua: window.GLTF_LITE (trình duyệt) hoặc module.exports (Node test).
+
+   Đợt animation: 5 model nhân vật xuất dạng CÂY NODE KHỚP (root -> part -> geometry).
+   parseGLB trả thêm `nodes` (cây node: tên, cha, ma trận CỤC BỘ) và mỗi part ghi thêm
+   `node` (chỉ số node chứa nó). buildGroup(THREE, parsed, {hierarchy:true}) dựng lại
+   đúng cây Object3D để game xoay từng khớp; KHÔNG truyền opts thì giữ nguyên đường
+   phẳng cũ (nướng ma trận thế giới vào mesh) cho 18 model tĩnh. collectParts(root)
+   tra bản đồ part theo tên (torso/head/arm_l/arm_r/leg_l/leg_r/tail_a/tail_b) —
+   gọi trên BẢN CLONE của từng instance vì clone(true) không mang theo tham chiếu cũ. */
 (function (global) {
   'use strict';
 
@@ -85,7 +93,9 @@
 
   /* parseGLB(buffer) — buffer: ArrayBuffer | Uint8Array | Buffer (Node).
      Trả: { materials: [{name, color:[r,g,b,a], emissive:[r,g,b]|null, roughness, metallic, doubleSided}],
-            parts: [{name, matrix:Float32Array(16) world, positions:Float32Array, indices:Uint32Array, material:int}],
+            parts: [{name, node:int, matrix:Float32Array(16) world, positions:Float32Array (CỤC BỘ theo node),
+                     indices:Uint32Array, material:int}],
+            nodes: [{name, parent:int (-1 = gốc), local:Float32Array(16), mesh:bool}] theo thứ tự duyệt pre-order,
             stats: {meshes, materials, faces, bboxMin:[3], bboxMax:[3]} }  (bbox theo tọa độ THẾ GIỚI sau matrix) */
   function parseGLB(buffer) {
     var u8 = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
@@ -120,11 +130,15 @@
     });
 
     var parts = [];
+    var nodes = [];
     var bMin = [Infinity, Infinity, Infinity], bMax = [-Infinity, -Infinity, -Infinity];
     var faces = 0;
-    function walkNode(nodeIdx, parentMat) {
+    function walkNode(nodeIdx, parentMat, parentEntry) {
       var node = json.nodes[nodeIdx];
-      var world = mat4Multiply(parentMat, nodeLocalMatrix(node));
+      var local = nodeLocalMatrix(node);
+      var world = mat4Multiply(parentMat, local);
+      var entry = nodes.length;
+      nodes.push({ name: node.name || '', parent: parentEntry, local: local, mesh: node.mesh != null });
       if (node.mesh != null) {
         var mesh = json.meshes[node.mesh];
         mesh.primitives.forEach(function (prim) {
@@ -133,7 +147,7 @@
           var idx = prim.indices != null ? readAccessor(json, bin, prim.indices) : null;
           if (!idx) { idx = new Uint32Array(pos.length / 3); for (var i = 0; i < idx.length; i++) idx[i] = i; }
           else if (!(idx instanceof Uint32Array)) idx = Uint32Array.from(idx);
-          parts.push({ name: node.name || mesh.name || '', matrix: world, positions: pos, indices: idx, material: prim.material != null ? prim.material : -1 });
+          parts.push({ name: node.name || mesh.name || '', node: entry, matrix: world, positions: pos, indices: idx, material: prim.material != null ? prim.material : -1 });
           faces += idx.length / 3;
           for (var v = 0; v < pos.length; v += 3) {
             var p = transformPoint(world, pos[v], pos[v + 1], pos[v + 2]);
@@ -141,20 +155,23 @@
           }
         });
       }
-      (node.children || []).forEach(function (c) { walkNode(c, world); });
+      (node.children || []).forEach(function (c) { walkNode(c, world, entry); });
     }
     var scene = json.scenes[json.scene || 0];
-    scene.nodes.forEach(function (n) { walkNode(n, mat4Identity()); });
+    scene.nodes.forEach(function (n) { walkNode(n, mat4Identity(), -1); });
 
     return {
       materials: materials,
       parts: parts,
+      nodes: nodes,
       stats: { meshes: parts.length, materials: materials.length, faces: faces, bboxMin: bMin, bboxMax: bMax }
     };
   }
 
   /* ================= Tầng 2: dựng THREE.Group (chỉ chạy trên trình duyệt) ================= */
-  function buildGroup(THREE, parsed) {
+  var PART_NAMES = ['torso', 'head', 'arm_l', 'arm_r', 'leg_l', 'leg_r', 'tail_a', 'tail_b'];
+
+  function buildMaterials(THREE, parsed) {
     var mats = parsed.materials.map(function (m) {
       var mat = new THREE.MeshStandardMaterial({
         color: new THREE.Color(m.color[0], m.color[1], m.color[2]),
@@ -166,26 +183,79 @@
       if (m.color[3] < 0.999) { mat.transparent = true; mat.opacity = m.color[3]; }
       return mat;
     });
-    var fallbackMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.9, flatShading: true });
+    return { mats: mats, fallback: new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.9, flatShading: true }) };
+  }
+  function makeMesh(THREE, part, mats, fallback) {
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(part.positions, 3));
+    geo.setIndex(new THREE.BufferAttribute(part.indices, 1));
+    geo.computeVertexNormals(); // dự phòng cho pipeline cần normal; flatShading vẫn thắng trong shader
+    var mesh = new THREE.Mesh(geo, part.material >= 0 ? mats[part.material] : fallback);
+    mesh.name = part.name;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    return mesh;
+  }
+
+  /* Đường PHẲNG (mặc định, 18 model tĩnh + mọi model trước đợt khớp): nướng ma trận
+     thế giới vào từng mesh, group chỉ có 1 lớp mesh — hành vi giữ nguyên tuyệt đối. */
+  function buildGroupFlat(THREE, parsed, built) {
     var group = new THREE.Group();
     var m4 = new THREE.Matrix4();
     parsed.parts.forEach(function (part) {
-      var geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.Float32BufferAttribute(part.positions, 3));
-      geo.setIndex(new THREE.BufferAttribute(part.indices, 1));
-      geo.computeVertexNormals(); // dự phòng cho pipeline cần normal; flatShading vẫn thắng trong shader
-      var mesh = new THREE.Mesh(geo, part.material >= 0 ? mats[part.material] : fallbackMat);
-      mesh.name = part.name;
+      var mesh = makeMesh(THREE, part, built.mats, built.fallback);
       m4.fromArray(part.matrix);
       mesh.applyMatrix4(m4);
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
       group.add(mesh);
     });
     return group;
   }
 
-  var api = { parseGLB: parseGLB, buildGroup: buildGroup };
+  /* Đường PHÂN CẤP (opts.hierarchy — 5 model nhân vật dạng khớp): dựng Object3D cho
+     TỪNG node với ma trận CỤC BỘ, lồng đúng cây cha-con trong GLB; mesh dùng hình học
+     cục bộ của node chứa nó. Xoay 1 node part là xoay quanh pivot khớp của nó. */
+  function buildGroupHierarchy(THREE, parsed, built) {
+    var objs = parsed.nodes.map(function (n) {
+      var o = new THREE.Object3D();
+      o.name = n.name;
+      var m = new THREE.Matrix4().fromArray(n.local);
+      m.decompose(o.position, o.quaternion, o.scale);
+      return o;
+    });
+    var roots = [];
+    parsed.nodes.forEach(function (n, i) {
+      if (n.parent >= 0 && objs[n.parent]) objs[n.parent].add(objs[i]);
+      else roots.push(objs[i]);
+    });
+    parsed.parts.forEach(function (part) {
+      var mesh = makeMesh(THREE, part, built.mats, built.fallback);
+      if (objs[part.node]) objs[part.node].add(mesh);
+      else roots.push(mesh); // part không rõ node — không để mất hình, treo ở gốc
+    });
+    var group = new THREE.Group();
+    roots.forEach(function (r) { group.add(r); });
+    group.userData.parts = collectParts(group);
+    return group;
+  }
+
+  function buildGroup(THREE, parsed, opts) {
+    var built = buildMaterials(THREE, parsed);
+    if (opts && opts.hierarchy) return buildGroupHierarchy(THREE, parsed, built);
+    return buildGroupFlat(THREE, parsed, built);
+  }
+
+  /* Tra bản đồ part theo tên trên 1 cây Object3D bất kỳ (template hoặc bản clone).
+     Trả {} nếu cây không có node khớp nào (model tĩnh). */
+  function collectParts(rootObj) {
+    var out = {};
+    if (!rootObj || !rootObj.traverse) return out;
+    rootObj.traverse(function (o) {
+      if (o.name && PART_NAMES.indexOf(o.name) !== -1 && !out[o.name]) out[o.name] = o;
+    });
+    return out;
+  }
+
+  var api = { parseGLB: parseGLB, buildGroup: buildGroup, collectParts: collectParts, PART_NAMES: PART_NAMES };
   global.GLTF_LITE = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : this);
