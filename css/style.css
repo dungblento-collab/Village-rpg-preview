@@ -1,0 +1,151 @@
+* { margin:0; padding:0; box-sizing:border-box; }
+html,body { width:100%; height:100%; overflow:hidden; font-family:'Segoe UI',system-ui,sans-serif; background:#0b1d2a; color:#fff; }
+#game-container, #game-container canvas { position:absolute; inset:0; width:100%; height:100%; display:block; }
+.hidden { display:none !important; }
+button { cursor:pointer; font-family:inherit; }
+
+#hud-top { position:absolute; top:10px; left:50%; transform:translateX(-50%); display:flex; gap:8px; z-index:10; }
+.res { background:rgba(10,20,30,.78); border:1px solid rgba(255,255,255,.25); border-radius:20px; padding:6px 14px; font-weight:700; font-size:16px; }
+.res.lvl { background:rgba(90,60,10,.85); }
+#dn-box { display:flex; align-items:center; gap:7px; padding:6px 12px; }
+#dn-icon { font-size:14px; line-height:1; }
+#dn-track { width:52px; height:5px; background:rgba(255,255,255,.18); border-radius:3px; overflow:hidden; display:inline-block; }
+#dn-fill { display:block; height:100%; width:0%; background:linear-gradient(90deg,#ffd54f,#ff8a65,#5c6bc0); border-radius:3px; }
+
+#hud-bars { position:absolute; top:10px; left:10px; width:280px; z-index:10; background:rgba(10,20,30,.6); padding:8px 10px; border-radius:10px; }
+.bar-row { display:flex; align-items:center; gap:6px; margin:3px 0; }
+.bar-label { width:26px; font-size:12px; font-weight:700; }
+.bar { flex:1; height:14px; background:rgba(255,255,255,.15); border-radius:7px; overflow:hidden; }
+.bar.thin { height:8px; }
+.fill { height:100%; width:100%; transition:width .2s; }
+.fill.hp { background:linear-gradient(90deg,#e53935,#ef5350); }
+.fill.en { background:linear-gradient(90deg,#1e88e5,#42a5f5); }
+.fill.xp { background:linear-gradient(90deg,#8e24aa,#ab47bc); }
+.fill.boss { background:linear-gradient(90deg,#b71c1c,#ff7043); }
+.bar-txt { font-size:11px; width:86px; }
+#boss-bar-wrap { margin-top:6px; }
+#boss-name { font-size:12px; font-weight:700; color:#ffb199; }
+#boss-portrait { width:34px; height:34px; border-radius:50%; object-fit:cover; vertical-align:middle; margin-right:6px; border:2px solid rgba(255,177,153,.75); }
+#companion-chip { display:flex; align-items:center; gap:6px; background:rgba(10,20,30,.78); border:1px solid rgba(255,255,255,.25); border-radius:16px; padding:3px 10px 3px 4px; font-size:12px; font-weight:700; }
+#companion-chip img { width:26px; height:26px; border-radius:50%; object-fit:cover; }
+.char-gallery { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin-top:10px; }
+.char-card { width:72px; text-align:center; }
+.char-card img { width:54px; height:54px; border-radius:50%; object-fit:cover; border:2px solid rgba(255,255,255,.35); }
+.char-card small { display:block; margin-top:3px; font-size:11px; line-height:1.25; }
+.inv-hero { display:flex; align-items:center; gap:12px; margin-bottom:6px; }
+.inv-hero img { width:64px; height:64px; border-radius:50%; object-fit:cover; border:2px solid rgba(129,199,132,.8); }
+.inv-hero .inv-hero-name { font-size:16px; font-weight:800; }
+.help-gallery { justify-content:flex-start; }
+
+#quest-box { position:absolute; top:10px; right:10px; width:270px; z-index:10; background:rgba(10,20,30,.72); border-left:4px solid #ffb300; padding:10px 12px; border-radius:8px; }
+#quest-title { font-size:12px; opacity:.8; }
+#quest-name { font-weight:800; font-size:15px; margin:2px 0; }
+#quest-desc { font-size:13px; opacity:.92; line-height:1.35; }
+#quest-progress { font-size:12px; color:#ffd54f; margin-top:4px; font-weight:700; }
+
+#interact-prompt { position:absolute; bottom:170px; left:50%; transform:translateX(-50%); z-index:11; background:rgba(0,0,0,.8); border:1px solid #ffd54f; color:#ffd54f; padding:8px 18px; border-radius:20px; font-weight:700; font-size:15px; cursor:pointer; }
+#toast-wrap { position:absolute; top:70px; left:50%; transform:translateX(-50%); z-index:12; display:flex; flex-direction:column; gap:6px; align-items:center; pointer-events:none; }
+.toast { background:rgba(20,40,20,.9); border:1px solid #81c784; padding:8px 16px; border-radius:8px; font-size:14px; animation:fadein .3s; }
+.toast.bad { background:rgba(60,15,15,.9); border-color:#e57373; }
+@keyframes fadein { from { opacity:0; transform:translateY(-6px);} to { opacity:1; } }
+#log-box { position:absolute; left:10px; bottom:120px; width:330px; z-index:9; font-size:12.5px; line-height:1.5; text-shadow:0 1px 3px #000; pointer-events:none; max-height:150px; overflow:hidden; display:flex; flex-direction:column-reverse; opacity:.95; }
+
+#hud-bottom { position:absolute; bottom:10px; left:50%; transform:translateX(-50%); z-index:10; display:flex; flex-direction:column; align-items:center; gap:6px; }
+#skill-bar, #order-bar, #menu-bar { display:flex; gap:6px; align-items:center; }
+.skill-btn { width:74px; height:58px; border-radius:10px; border:2px solid rgba(255,255,255,.35); background:rgba(10,20,30,.8); color:#fff; font-size:22px; position:relative; }
+.skill-btn small { display:block; font-size:10px; }
+.skill-btn .cd { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:800; color:#ffeb3b; background:rgba(0,0,0,.45); border-radius:8px; }
+.skill-btn .cd:empty { display:none; }
+.skill-btn.no-energy { border-color:#e53935; }
+#btn-aim.aim-on { border-color:#ff5252; background:rgba(120,20,20,.92); box-shadow:0 0 12px rgba(255,82,82,.9); }
+.order-btn, #menu-bar button { padding:7px 12px; border-radius:8px; border:1px solid rgba(255,255,255,.3); background:rgba(10,20,30,.8); color:#fff; font-size:13px; }
+.order-btn.active { background:#2e7d32; border-color:#a5d6a7; }
+.order-label { font-size:13px; text-shadow:0 1px 3px #000; }
+
+#build-bar { position:absolute; bottom:10px; left:50%; transform:translateX(-50%); z-index:11; background:rgba(10,20,30,.88); padding:10px; border-radius:12px; width:min(680px,94vw); }
+#build-list { display:flex; flex-wrap:wrap; gap:6px; justify-content:center; }
+.build-item { padding:8px 10px; border-radius:8px; border:2px solid rgba(255,255,255,.25); background:rgba(255,255,255,.08); color:#fff; font-size:12.5px; text-align:left; }
+.build-item.selected { border-color:#ffd54f; background:rgba(255,213,79,.18); }
+.build-item.locked, .build-item.cant { opacity:.45; }
+#build-hint { text-align:center; font-size:12.5px; margin-top:8px; opacity:.9; }
+
+#panel { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); z-index:20; width:min(560px,94vw); max-height:82vh; background:rgba(12,24,36,.97); border:1px solid rgba(255,255,255,.3); border-radius:14px; display:flex; flex-direction:column; }
+#panel-head { display:flex; justify-content:space-between; align-items:center; padding:12px 16px; border-bottom:1px solid rgba(255,255,255,.15); font-weight:800; font-size:17px; }
+#panel-close { background:none; border:none; color:#fff; font-size:18px; }
+#panel-body { padding:14px 16px; overflow-y:auto; font-size:14px; line-height:1.5; }
+.item-row, .gem-row { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:7px 9px; border:1px solid rgba(255,255,255,.12); border-radius:8px; margin:5px 0; background:rgba(255,255,255,.04); }
+.item-row button, .gem-row button, .mini-btn { padding:5px 11px; border-radius:6px; border:1px solid rgba(255,255,255,.35); background:#37474f; color:#fff; font-size:12.5px; }
+.rarity-common { color:#cfd8dc; } .rarity-magic { color:#64b5f6; } .rarity-rare { color:#ffd54f; } .rarity-legendary { color:#ff8a65; font-weight:800; }
+.stats-grid { display:grid; grid-template-columns:1fr 1fr; gap:2px 18px; margin:8px 0; }
+select { background:#263238; color:#fff; border-radius:6px; padding:5px; border:1px solid rgba(255,255,255,.3); }
+
+#start-screen { position:absolute; inset:0; z-index:30; background-color:#0a2819; background-image:linear-gradient(180deg, rgba(6,24,38,.80), rgba(10,40,25,.90)), url('../img/keyart.jpg'); background-size:cover; background-position:center; background-repeat:no-repeat; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:20px; }
+#start-screen h1 { font-size:clamp(26px,5vw,46px); margin-bottom:8px; }
+#start-screen .sub { opacity:.9; margin-bottom:10px; }
+#btn-start { font-size:20px; font-weight:800; padding:13px 42px; border-radius:12px; border:none; background:#2e7d32; color:#fff; margin:12px 0; }
+#btn-start:hover { background:#388e3c; }
+.help-text { font-size:13.5px; line-height:1.9; opacity:.9; max-width:640px; }
+#start-continue-note { color:#ffd54f; font-weight:700; }
+
+#fatal { position:absolute; inset:0; z-index:40; background:rgba(40,0,0,.95); display:flex; align-items:center; justify-content:center; text-align:center; padding:30px; font-size:17px; line-height:1.6; }
+
+#touch-ui { position:absolute; inset:auto 0 0 0; z-index:15; pointer-events:none; }
+#joystick { position:absolute; left:18px; bottom:110px; width:110px; height:110px; border-radius:50%; background:rgba(255,255,255,.12); border:2px solid rgba(255,255,255,.35); pointer-events:auto; touch-action:none; }
+#joystick-knob { position:absolute; left:35px; top:35px; width:40px; height:40px; border-radius:50%; background:rgba(255,255,255,.55); }
+#touch-btns { position:absolute; right:18px; bottom:110px; display:flex; gap:10px; pointer-events:auto; }
+#touch-btns button { width:56px; height:56px; border-radius:50%; border:2px solid rgba(255,255,255,.4); background:rgba(10,20,30,.7); color:#fff; font-size:20px; }
+
+#rotate-hint { position:absolute; inset:0; z-index:26; background:rgba(5,15,25,.88); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; text-align:center; padding:24px; }
+#rotate-hint .rotate-icon { font-size:52px; animation:rotatehint 1.6s ease-in-out infinite; }
+@keyframes rotatehint { 0%,55% { transform:rotate(0deg); } 80%,100% { transform:rotate(90deg); } }
+#rotate-hint p { font-size:17px; font-weight:700; max-width:420px; line-height:1.45; }
+#rotate-dismiss { min-height:48px; padding:12px 26px; border-radius:10px; border:1px solid rgba(255,255,255,.5); background:rgba(255,255,255,.14); color:#fff; font-size:15px; font-weight:700; }
+
+@media (max-width: 760px) {
+  #hud-bars { width:200px; }
+  #quest-box { width:200px; top:64px; }
+  #log-box { display:none; }
+  .skill-btn { width:60px; height:50px; font-size:18px; }
+  #menu-bar { flex-wrap:wrap; justify-content:center; }
+}
+
+/* --- Điện thoại NGANG (khung thấp): cụm kỹ năng về góc phải dưới, HUD nén gọn ---
+   Chỉ áp khi ngang + chiều cao nhỏ; chế độ dọc và desktop giữ nguyên bố cục. */
+@media (orientation: landscape) and (max-height: 500px) {
+  #hud-top { top:6px; gap:5px; }
+  #hud-top .res { font-size:12px; padding:4px 9px; }
+  #dn-track { width:36px; }
+  #hud-bars { width:208px; top:6px; left:6px; padding:6px 8px; }
+  #quest-box { width:218px; top:6px; right:6px; padding:7px 9px; }
+  #quest-desc { display:none; }
+  #quest-name { font-size:13px; }
+  #hud-bottom { left:auto; right:10px; transform:none; bottom:8px; align-items:flex-end; gap:5px; }
+  #skill-bar { gap:8px; }
+  .skill-btn { width:56px; height:56px; min-width:52px; min-height:52px; border-radius:50%; font-size:20px; }
+  .skill-btn small { font-size:8.5px; }
+  #btn-attack { width:68px; height:68px; min-width:60px; min-height:60px; border-color:#ffd54f; background:rgba(60,40,5,.85); }
+  #order-bar { gap:4px; }
+  .order-btn { min-height:44px; padding:5px 9px; font-size:12px; }
+  .order-label { font-size:11px; }
+  #menu-bar { flex-wrap:wrap; justify-content:flex-end; gap:4px; }
+  #menu-bar button { min-height:44px; padding:6px 9px; font-size:12px; }
+  #companion-chip { font-size:11px; }
+  #joystick { bottom:26px; left:14px; }
+  #touch-btns { right:12px; bottom:218px; }
+  #touch-btns button { width:52px; height:52px; min-width:52px; min-height:52px; }
+  #interact-prompt { bottom:auto; top:64px; }
+  #log-box { display:none; }
+}
+
+/* --- Vòng hoàn thiện: tutorial, hướng dẫn nhanh, ô đá trống --- */
+#tut-tip { position:absolute; bottom:190px; left:50%; transform:translateX(-50%); z-index:13; background:rgba(20,30,50,.94); border:1px solid #64b5f6; color:#e3f2fd; padding:10px 14px; border-radius:10px; font-size:14px; max-width:min(560px,92vw); display:flex; gap:10px; align-items:center; cursor:pointer; }
+#tut-skip { flex:none; padding:5px 10px; border-radius:6px; border:1px solid rgba(255,255,255,.4); background:#37474f; color:#fff; font-size:12px; }
+#btn-guide { font-size:15px; font-weight:700; padding:9px 22px; border-radius:10px; border:1px solid rgba(255,255,255,.5); background:rgba(255,255,255,.12); color:#fff; }
+#guide-box { max-width:640px; text-align:left; font-size:13.5px; line-height:1.75; background:rgba(0,0,0,.45); border:1px solid rgba(255,255,255,.25); border-radius:10px; padding:12px 16px; margin-top:6px; }
+.gem-row.empty-slot { opacity:.55; border-style:dashed; justify-content:flex-start; }
+/* --- PWA: nút cài app (màn hình bắt đầu), gợi ý iOS, thanh thông báo bản mới --- */
+#btn-install { font-size:16px; font-weight:800; padding:11px 30px; border-radius:12px; border:2px solid #ffd54f; background:#2e7d32; color:#fff; margin:2px 0 8px; cursor:pointer; }
+#btn-install:hover { background:#388e3c; }
+#ios-install-hint { font-size:13.5px; font-weight:600; color:#ffd54f; max-width:520px; margin:2px 0 8px; }
+#pwa-update-bar { position:absolute; bottom:14px; left:50%; transform:translateX(-50%); z-index:35; display:none; align-items:center; gap:12px; background:rgba(10,20,30,.95); border:1px solid #ffd54f; border-radius:12px; padding:10px 16px; font-size:14px; font-weight:700; box-shadow:0 6px 24px rgba(0,0,0,.5); }
+#pwa-update-btn { padding:7px 18px; border-radius:8px; border:none; background:#ffd54f; color:#263238; font-size:14px; font-weight:800; cursor:pointer; }
