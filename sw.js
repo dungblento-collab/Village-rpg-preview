@@ -6,7 +6,7 @@
    - Tăng CACHE_NAME mỗi đợt phát hành (village-rpg-v2, v3, ...) để bản cũ bị dọn sạch. */
 'use strict';
 
-var CACHE_NAME = 'village-rpg-v2';
+var CACHE_NAME = 'village-rpg-v3';
 var CDN_THREE = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.2/three.min.js';
 
 // Nhóm LÕI: thiếu là game không chạy — cài một lượt.
