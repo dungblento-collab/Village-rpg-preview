@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Project Village RPG — Làng & Sương Mù</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0b1d2a">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Village RPG">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="game-container"></div>
+
+<!-- HUD tài nguyên -->
+<div id="hud-top">
+  <div class="res" title="Gỗ">🪵 <span id="res-wood">0</span></div>
+  <div class="res" title="Vàng">🪙 <span id="res-gold">0</span></div>
+  <div class="res" title="Thức ăn">🍞 <span id="res-food">0</span></div>
+  <div class="res" title="Hắc Kim">⬛ <span id="res-dark">0</span></div>
+  <div class="res lvl">Lv <span id="player-level">1</span></div>
+  <div class="res" id="dn-box" title="Chu kỳ ngày – đêm"><span id="dn-icon">🌅</span><span id="dn-track"><span id="dn-fill"></span></span></div>
+</div>
+
+<!-- Thanh máu / năng lượng / XP -->
+<div id="hud-bars">
+  <div class="bar-row"><span class="bar-label">HP</span><div class="bar"><div id="bar-hp" class="fill hp"></div></div><span id="txt-hp" class="bar-txt"></span></div>
+  <div class="bar-row"><span class="bar-label">EN</span><div class="bar"><div id="bar-en" class="fill en"></div></div><span id="txt-en" class="bar-txt"></span></div>
+  <div class="bar-row"><span class="bar-label">XP</span><div class="bar thin"><div id="bar-xp" class="fill xp"></div></div><span id="txt-xp" class="bar-txt"></span></div>
+  <div id="boss-bar-wrap" class="hidden"><img id="boss-portrait" src="img/p-boss1.jpg" alt="Boss" onerror="this.style.display='none'"><span id="boss-name">Boss</span><div class="bar"><div id="bar-boss" class="fill boss"></div></div></div>
+</div>
+
+<!-- Nhiệm vụ -->
+<div id="quest-box">
+  <div id="quest-title">📜 Nhiệm vụ</div>
+  <div id="quest-name">—</div>
+  <div id="quest-desc">—</div>
+  <div id="quest-progress"></div>
+</div>
+
+<!-- Gợi ý tương tác -->
+<div id="interact-prompt" class="hidden"></div>
+<div id="tut-tip" class="hidden"><span id="tut-text"></span><button id="tut-skip">Bỏ qua hướng dẫn</button></div>
+<div id="toast-wrap"></div>
+<div id="log-box"></div>
+
+<!-- Thanh kỹ năng + lệnh -->
+<div id="hud-bottom">
+  <div id="skill-bar">
+    <button class="skill-btn" data-skill="slash" id="btn-slash">⚔️<small>1 · Chém</small><span class="cd"></span></button>
+    <button class="skill-btn" data-skill="fireball" id="btn-fireball">🔥<small>2 · Cầu lửa</small><span class="cd"></span></button>
+    <button class="skill-btn" data-skill="arrow" id="btn-arrow">🏹<small>3 · Mũi tên</small><span class="cd"></span></button>
+    <button class="skill-btn" id="btn-attack">🗡️<small>F · Đánh</small></button>
+    <button class="skill-btn" id="btn-aim" title="Aimbot trợ ngắm (V): tự khóa quái gần nhất, đạn đón đầu + dẫn hướng nhẹ">🎯<small>V · Ngắm</small></button>
+  </div>
+  <div id="companion-chip" class="hidden"><img src="img/p-companion.jpg" alt="Đồng đội" onerror="this.parentNode.style.display='none'"><span>Đồng đội đang theo bạn</span></div>
+  <div id="order-bar">
+    <span class="order-label">Lệnh:</span>
+    <button class="order-btn" data-order="follow">Theo sau <small>Z</small></button>
+    <button class="order-btn" data-order="guard">Bảo vệ <small>X</small></button>
+    <button class="order-btn" data-order="attack">Tấn công <small>C</small></button>
+  </div>
+  <div id="menu-bar">
+    <button id="btn-build">🏗️ Xây (B)</button>
+    <button id="btn-inventory">🎒 Túi đồ (I)</button>
+    <button id="btn-gems">💎 Đá (G)</button>
+    <button id="btn-help">❓ Phím</button>
+    <button id="btn-event" class="hidden">🧺 Sự kiện</button>
+    <button id="btn-newgame">↺ Chơi mới</button>
+  </div>
+</div>
+
+<!-- Chế độ xây dựng -->
+<div id="build-bar" class="hidden">
+  <div id="build-list"></div>
+  <div id="build-hint">Di chuột chọn vị trí · <b>R</b> xoay · <b>Click trái</b> đặt (đặt xong tự thoát chế độ xây, bấm <b>B</b> để xây tiếp) · <b>Esc/B</b> hủy. Xanh = hợp lệ, Đỏ = không hợp lệ.</div>
+</div>
+
+<!-- Panel chung -->
+<div id="panel" class="hidden">
+  <div id="panel-head"><span id="panel-title"></span><button id="panel-close">✕</button></div>
+  <div id="panel-body"></div>
+</div>
+
+<!-- Chạm (điện thoại) -->
+<div id="touch-ui" class="hidden">
+  <div id="joystick"><div id="joystick-knob"></div></div>
+  <div id="touch-btns">
+    <button id="t-atk">⚔️</button>
+    <button id="t-act">E</button>
+    <button id="t-jump">▲</button>
+  </div>
+</div>
+
+<!-- Gợi ý xoay ngang: chỉ hiện trên điện thoại cảm ứng đang để dọc sau khi vào game -->
+<div id="rotate-hint" class="hidden">
+  <div class="rotate-icon">📱</div>
+  <p>Xoay ngang điện thoại để chơi thoải mái hơn</p>
+  <button id="rotate-dismiss">Vẫn chơi dọc</button>
+</div>
+
+<!-- Màn hình bắt đầu -->
+<div id="start-screen">
+  <h1>🏰 Project Village RPG</h1>
+  <p class="sub">Xây làng · Kết hợp đá kỹ năng · Đánh boss — game 3D chạy ngay trên trình duyệt (Three.js).</p>
+  <p id="start-continue-note"></p>
+  <button id="btn-start">▶ Vào game</button>
+  <button id="btn-guide">📖 Hướng dẫn nhanh</button>
+  <div id="guide-box" class="hidden">
+    <b>🎯 Mục tiêu:</b> xây làng vững mạnh, hạ <b>Chúa Tể Sương Mù</b> rồi <b>Sương Vương</b> ở cuối Khu Sương Mù (phía Đông).<br>
+    <b>🔁 Vòng lặp:</b> chặt cây/đào đá (E) lấy tài nguyên → xây Trại gỗ &amp; Trang trại (B) để sản xuất → rèn/Lò rèn + nhặt đồ rơi để mạnh lên → lắp <b>đá kỹ năng</b> (G) tạo build → chiêu mộ đồng đội ở Doanh trại → vào khu sương mù đánh quái &amp; boss.<br>
+    <b>⬆️ Nâng cấp:</b> công trình nâng tới Cấp 3 (menu Xây → mục "Công trình đã xây") — sản lượng và sức làng tăng theo cấp.<br>
+    <b>🧺 Sự kiện làng:</b> thỉnh thoảng có thương nhân, lễ hội thu hoạch hoặc thú hoang — để ý thông báo!<br>
+    ⚠️ Tiến trình chỉ lưu trong trình duyệt này (localStorage): không đồng bộ thiết bị khác, xóa dữ liệu trang web là mất save.
+    <div class="char-gallery">
+      <div class="char-card"><img src="img/p-hero.jpg" alt="Anh hùng" onerror="this.style.display='none'"><small>Anh hùng</small></div>
+      <div class="char-card"><img src="img/p-elder.jpg" alt="Trưởng làng" onerror="this.style.display='none'"><small>Trưởng làng</small></div>
+      <div class="char-card"><img src="img/p-companion.jpg" alt="Đồng đội" onerror="this.style.display='none'"><small>Đồng đội</small></div>
+      <div class="char-card"><img src="img/p-goblin.jpg" alt="Goblin" onerror="this.style.display='none'"><small>Goblin</small></div>
+      <div class="char-card"><img src="img/p-boss1.jpg" alt="Chúa Tể Sương Mù" onerror="this.style.display='none'"><small>Chúa Tể Sương Mù</small></div>
+      <div class="char-card"><img src="img/p-boss2.jpg" alt="Sương Vương" onerror="this.style.display='none'"><small>Sương Vương</small></div>
+    </div>
+  </div>
+  <div class="help-text">
+    <b>Điều khiển:</b> WASD / phím mũi tên di chuyển · Shift chạy · Chuột kéo / click vào game để xoay camera · Lăn chuột / chụm–mở hai ngón: zoom gần–xa<br>
+    <b>E</b> tương tác (chặt cây, đào đá, nói chuyện, chiêu mộ…) · <b>F</b> hoặc click trái: đánh thường · <b>1/2/3</b>: kỹ năng<br>
+    <b>B</b> xây dựng · <b>I</b> túi đồ · <b>G</b> đá kỹ năng · <b>Z/X/C</b> đổi lệnh đồng đội · <b>T</b> đánh dấu mục tiêu gần nhất · <b>V</b> aimbot trợ ngắm (tự khóa mục tiêu, đạn đón đầu)<br>
+    Tiến trình tự lưu vào trình duyệt (localStorage) — xóa dữ liệu trình duyệt sẽ mất save.
+  </div>
+</div>
+
+<div id="fatal" class="hidden"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.2/three.min.js"></script>
+<script src="js/data.js"></script>
+<script src="js/core.js"></script>
+<script src="js/gltf-lite.js"></script>
+<script src="js/game.js"></script>
+<script src="js/pwa.js"></script>
+</body>
+</html>
