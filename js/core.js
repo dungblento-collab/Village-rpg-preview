@@ -315,10 +315,12 @@
   // Kho cấp cao tăng sản lượng toàn cục: +5% mỗi cấp trên 1 của Kho tốt nhất (tối đa +10%).
   function productionGlobalMult(state) { return 1 + 0.05 * Math.max(0, maxBuildingLevel(state, 'warehouse') - 1); }
   // Sản lượng hiệu dụng của 1 công trình: amount x level x hệ số Kho toàn cục.
+  // Trang trại còn nhân thêm (1 + windmillFarmBonus) — Cối xay gió tăng THÔNG LƯỢNG farm.
   function productionFor(building, state) {
     var def = D.BUILDINGS[building.type];
     if (!def || !def.produces) return null;
     var mult = state ? productionGlobalMult(state) : 1;
+    if (state && building.type === 'farm') mult *= (1 + windmillFarmBonus(state));
     return { res: def.produces.res, amount: def.produces.amount * buildingLevel(building) * mult, interval: def.produces.interval };
   }
   // Doanh trại theo cấp: giảm giá chiêu mộ + tăng sát thương đồng đội.
@@ -352,6 +354,128 @@
     if (!spend(state.resources, offer.cost)) return { ok: false, reason: 'not-enough' };
     add(state.resources, offer.gain);
     return { ok: true, offer: offer };
+  }
+
+  /* ================= 6 công trình mới (đợt mở rộng): logic thuần =================
+     Quy tắc chống cộng dồn vô hạn (ghi rõ): MỌI hiệu ứng theo cấp đều lấy công trình
+     MẠNH NHẤT (cấp cao nhất) của loại đó — xây thêm bản sao không tăng thêm hiệu ứng. */
+  // Chợ: đổi theo MARKET_TRADES. Vàng nhận được x (1 + 0.1 x (cấp chợ mạnh nhất - 1)).
+  // Nguyên tử như spend(): không đủ -> từ chối, KHÔNG trừ gì.
+  function marketTrade(state, tradeId) {
+    var trade = null;
+    (D.MARKET_TRADES || []).forEach(function (t) { if (t.id === tradeId) trade = t; });
+    if (!trade) return { ok: false, reason: 'bad-trade' };
+    if (!maxBuildingLevel(state, 'market')) return { ok: false, reason: 'no-market' };
+    if (!spend(state.resources, trade.cost)) return { ok: false, reason: 'not-enough' };
+    var gain = {};
+    for (var k in trade.gain) {
+      gain[k] = (k === 'gold') ? Math.round(trade.gain[k] * (1 + 0.1 * (maxBuildingLevel(state, 'market') - 1))) : trade.gain[k];
+    }
+    add(state.resources, gain);
+    return { ok: true, trade: trade, gainApplied: gain };
+  }
+  // Cối xay gió: +sản lượng farm theo cấp cối mạnh nhất (0.30/0.40/0.50 — trần +50%).
+  function windmillFarmBonus(state) {
+    var lv = maxBuildingLevel(state, 'windmill');
+    return lv ? (D.WINDMILL_FARM_BONUS[lv] || 0) : 0;
+  }
+  // Đền thờ: hệ số trọng số loot Hiếm/Huyền thoại theo cấp đền mạnh nhất.
+  function shrineLootMult(state) {
+    var lv = maxBuildingLevel(state, 'shrine');
+    return lv ? (D.SHRINE_LOOT_MULT[lv] || 1) : 1;
+  }
+  // Trọng số quay loot hiện tại: item rare/legendary nặng gấp shrineLootMult lần.
+  function lootWeights(state) {
+    var m = shrineLootMult(state);
+    return D.LOOT_TABLE.map(function (id) {
+      var it = D.ITEMS[id];
+      var rare = it && (it.rarity === 'rare' || it.rarity === 'legendary');
+      return { id: id, w: rare ? m : 1 };
+    });
+  }
+  // Quay 1 vật phẩm từ LOOT_TABLE theo trọng số đền. rng truyền vào để test tất định.
+  function rollLoot(rng, state) {
+    var ws = lootWeights(state), total = 0, i;
+    for (i = 0; i < ws.length; i++) total += ws[i].w;
+    var r = (rng ? rng() : Math.random()) * total;
+    for (i = 0; i < ws.length; i++) { r -= ws[i].w; if (r < 0) return ws[i].id; }
+    return ws[ws.length - 1].id;
+  }
+  // Nhà học: hệ số XP + điểm cộng XP duy nhất (game.killEnemy đi qua xpGainFor).
+  function libraryXpMult(state) {
+    var lv = maxBuildingLevel(state, 'library');
+    return 1 + (lv ? (D.LIBRARY_XP_BONUS[lv] || 0) : 0);
+  }
+  function xpGainFor(state, baseXp) { return Math.max(1, Math.round(baseXp * libraryXpMult(state))); }
+  // Quán ăn: quán GẦN NHẤT trong bán kính quyết định tốc độ hồi. Ngoài bán kính -> null.
+  function tavernRegenAt(state, x, z) {
+    var best = null;
+    (state.buildings || []).forEach(function (b) {
+      if (b.type !== 'tavern') return;
+      var dx = x - b.x, dz = z - b.z, d = Math.sqrt(dx * dx + dz * dz);
+      if (d <= D.TAVERN_REGEN.radius && (!best || d < best.d)) best = { d: d, level: buildingLevel(b) };
+    });
+    if (!best) return null;
+    return { hpPerSec: D.TAVERN_REGEN.hpPerSecPerLevel * best.level, enPerSec: D.TAVERN_REGEN.enPerSecPerLevel * best.level, level: best.level };
+  }
+  // Tháp canh: 0.20 nếu (x,z) nằm trong bán kính của BẤT KỲ tháp nào (không cộng dồn), ngược lại 0.
+  function watchtowerSlowAt(state, x, z) {
+    var hit = false;
+    (state.buildings || []).forEach(function (b) {
+      if (hit || b.type !== 'watchtower') return;
+      var r = D.WATCHTOWER_SLOW.radiusByLevel[buildingLevel(b)] || 8;
+      var dx = x - b.x, dz = z - b.z;
+      if (dx * dx + dz * dz <= r * r) hit = true;
+    });
+    return hit ? D.WATCHTOWER_SLOW.pct : 0;
+  }
+
+  /* ================= Settings (đợt mở rộng): LƯU RIÊNG, không lẫn save game =================
+     Key riêng 'projectVillageRPG.settings.v1'. Mất/hỏng settings -> mặc định, save game vô sự.
+     sanitizeSettings: chỉ nhận giá trị hợp lệ, kẹp thanh trượt 0.5–2, enum chặt chẽ. */
+  var SETTINGS_KEY = 'projectVillageRPG.settings.v1';
+  var SETTINGS_DEFAULTS = {
+    quality: 'high', shadows: true, envFx: true,
+    shake: true, flash: true, hitStop: true, floatText: true, particles: true,
+    camSensitivity: 1, camDistDefault: 40, aimbot: false,
+    daySpeed: 1, showFps: false
+  };
+  function defaultSettings() { var o = {}; for (var k in SETTINGS_DEFAULTS) o[k] = SETTINGS_DEFAULTS[k]; return o; }
+  function sanitizeSettings(inp) {
+    var o = defaultSettings();
+    if (!inp || typeof inp !== 'object') return o;
+    if (['low', 'med', 'high'].indexOf(inp.quality) !== -1) o.quality = inp.quality;
+    ['shadows', 'envFx', 'shake', 'flash', 'hitStop', 'floatText', 'particles', 'aimbot', 'showFps'].forEach(function (k) {
+      if (typeof inp[k] === 'boolean') o[k] = inp[k];
+    });
+    if (typeof inp.camSensitivity === 'number' && isFinite(inp.camSensitivity)) o.camSensitivity = Math.max(0.5, Math.min(2, inp.camSensitivity));
+    if ([18, 28, 40].indexOf(inp.camDistDefault) !== -1) o.camDistDefault = inp.camDistDefault;
+    if ([0.5, 1, 2].indexOf(inp.daySpeed) !== -1) o.daySpeed = inp.daySpeed;
+    return o;
+  }
+  function loadSettings(storage) {
+    try {
+      var raw = storage && storage.getItem(SETTINGS_KEY);
+      if (raw) return sanitizeSettings(JSON.parse(raw));
+    } catch (e) { /* settings hỏng -> mặc định, không đụng save */ }
+    return defaultSettings();
+  }
+  function saveSettings(storage, s) {
+    try { storage.setItem(SETTINGS_KEY, JSON.stringify(sanitizeSettings(s))); return true; }
+    catch (e) { return false; }
+  }
+
+  /* ================= Xuất / Nhập save (đợt mở rộng) =================
+     importSave kiểm tra TRƯỚC khi ghi: JSON hợp lệ + version khớp + deserialize chạy qua.
+     Sai bất kỳ bước nào -> {ok:false} và nơi gọi GIỮ NGUYÊN save cũ. */
+  function exportSave(state) { return serialize(state); }
+  function importSave(text) {
+    var parsed;
+    try { parsed = JSON.parse(text); } catch (e) { return { ok: false, reason: 'bad-json' }; }
+    if (!parsed || typeof parsed !== 'object') return { ok: false, reason: 'bad-json' };
+    if (parsed.version !== SAVE_VERSION) return { ok: false, reason: 'version' };
+    try { return { ok: true, state: deserialize(text) }; }
+    catch (e) { return { ok: false, reason: 'invalid' }; }
   }
 
   /* ================= Text công thức (Mục 3: tooltip định lượng) ================= */
@@ -515,6 +639,14 @@
     maxBuildingLevel: maxBuildingLevel, productionGlobalMult: productionGlobalMult, productionFor: productionFor,
     recruitCostFor: recruitCostFor, companionDamageMult: companionDamageMult,
     pickEvent: pickEvent, festivalFood: festivalFood, applyEventReward: applyEventReward, applyMerchantOffer: applyMerchantOffer,
+    marketTrade: marketTrade, windmillFarmBonus: windmillFarmBonus,
+    shrineLootMult: shrineLootMult, lootWeights: lootWeights, rollLoot: rollLoot,
+    libraryXpMult: libraryXpMult, xpGainFor: xpGainFor,
+    tavernRegenAt: tavernRegenAt, watchtowerSlowAt: watchtowerSlowAt,
+    SETTINGS_KEY: SETTINGS_KEY, SETTINGS_DEFAULTS: SETTINGS_DEFAULTS,
+    defaultSettings: defaultSettings, sanitizeSettings: sanitizeSettings,
+    loadSettings: loadSettings, saveSettings: saveSettings,
+    exportSave: exportSave, importSave: importSave,
     skillFormulaText: skillFormulaText, gemEffectText: gemEffectText
   };
 });

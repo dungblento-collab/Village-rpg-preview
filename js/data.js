@@ -20,8 +20,32 @@
     barracks:  { id: 'barracks',  name: 'Doanh trại',    cost: { wood: 30, gold: 15, food: 10 },     size: 3.5, color: 0x7f5539, desc: 'Chiêu mộ đồng đội (đến gần, phím E).' },
     forge:     { id: 'forge',     name: 'Lò rèn',        cost: { wood: 20, gold: 20, dark: 1 },      size: 3, color: 0x606c78, desc: 'Rèn trang bị ngẫu nhiên (đến gần, phím E).' },
     altar:     { id: 'altar',     name: 'Đài kỹ năng',   cost: { wood: 25, gold: 25, dark: 2 },      size: 3, color: 0x7b5ea7, desc: 'Mở khóa sau boss đầu tiên. Nhận đá hỗ trợ (đến gần, phím E).', locked: 'boss' },
-    darkmine:  { id: 'darkmine',  name: 'Mỏ Hắc Kim',    cost: { wood: 40, gold: 30, food: 10 },     size: 3, color: 0x3d348b, desc: 'Sản xuất +1 Hắc Kim / 25 giây.', produces: { res: 'dark', amount: 1, interval: 25 } }
+    darkmine:  { id: 'darkmine',  name: 'Mỏ Hắc Kim',    cost: { wood: 40, gold: 30, food: 10 },     size: 3, color: 0x3d348b, desc: 'Sản xuất +1 Hắc Kim / 25 giây.', produces: { res: 'dark', amount: 1, interval: 25 } },
+    /* --- 6 công trình mới (đợt mở rộng): cat = tab menu xây (home/prod/special); tham số chức năng ở các khối riêng bên dưới --- */
+    market:    { id: 'market',    name: 'Chợ',           cost: { wood: 35, gold: 15 },               size: 4, cat: 'special', color: 0xc96f3b, desc: 'Đổi tài nguyên theo tỉ lệ cố định (đến gần, phím E). Vàng nhận thêm +10% mỗi cấp trên 1.' },
+    windmill:  { id: 'windmill',  name: 'Cối xay gió',   cost: { wood: 45, gold: 10 },               size: 3, cat: 'prod',    color: 0xd9a441, desc: 'Cánh quạt xoay thật. Tăng sản lượng MỌI Trang trại: +30/40/50% theo cấp (chỉ tính cối mạnh nhất, trần +50%).' },
+    shrine:    { id: 'shrine',    name: 'Đền thờ nhỏ',   cost: { wood: 20, gold: 10, dark: 3 },      size: 3, cat: 'special', color: 0x8e7fb8, desc: 'Tăng trọng số rơi vật phẩm Hiếm/Huyền thoại khi quay loot: ×1.5/2/2.5 theo cấp (chỉ tính đền mạnh nhất).' },
+    tavern:    { id: 'tavern',    name: 'Quán ăn',       cost: { wood: 30, food: 15 },               size: 4, cat: 'home',    color: 0xc89b6c, desc: 'Đứng trong bán kính 6 quanh quán: hồi 1 máu + 2 năng lượng mỗi giây cho mỗi cấp của quán.' },
+    library:   { id: 'library',   name: 'Nhà học',       cost: { wood: 35, gold: 20 },               size: 4, cat: 'special', color: 0x546a8a, desc: 'Tăng XP nhận khi hạ quái: +15/25/35% theo cấp (chỉ tính nhà học mạnh nhất).' },
+    watchtower:{ id: 'watchtower',name: 'Tháp canh',     cost: { wood: 40, gold: 5 },                size: 3, cat: 'special', color: 0x7a4a2b, desc: 'Quái trong bán kính tháp bị chậm 20% (bán kính 8/10/12 theo cấp; nhiều tháp không cộng dồn).' }
   };
+  // Tab cho 9 công trình cũ (menu xây nhóm: Nhà ở / Sản xuất / Đặc biệt)
+  BUILDINGS.house.cat = 'home';
+  BUILDINGS.lumber.cat = 'prod'; BUILDINGS.farm.cat = 'prod'; BUILDINGS.warehouse.cat = 'prod'; BUILDINGS.darkmine.cat = 'prod';
+  BUILDINGS.barracks.cat = 'special'; BUILDINGS.forge.cat = 'special'; BUILDINGS.altar.cat = 'special';
+
+  /* ---------------- Tham số chức năng 6 công trình mới (đợt mở rộng) ----------------
+     Mọi hệ số nằm tại đây; logic thuần áp dụng trong core.js, hiệu ứng runtime trong game.js. */
+  var MARKET_TRADES = [ // chợ: tỉ lệ cố định; vàng nhận được x (1 + 0.1 x (cấp chợ - 1)) ở core.marketTrade
+    { id: 'wood_gold', label: '10 Gỗ → 6 Vàng', cost: { wood: 10 }, gain: { gold: 6 } },
+    { id: 'food_gold', label: '10 Thức ăn → 8 Vàng', cost: { food: 10 }, gain: { gold: 8 } },
+    { id: 'gold_dark', label: '20 Vàng → 5 Hắc Kim', cost: { gold: 20 }, gain: { dark: 5 } }
+  ];
+  var WINDMILL_FARM_BONUS = { 1: 0.30, 2: 0.40, 3: 0.50 }; // theo cấp cối MẠNH NHẤT — không cộng dồn, trần +50%
+  var SHRINE_LOOT_MULT = { 1: 1.5, 2: 2.0, 3: 2.5 };        // x trọng số rarity rare + legendary, theo cấp đền MẠNH NHẤT
+  var LIBRARY_XP_BONUS = { 1: 0.15, 2: 0.25, 3: 0.35 };     // +XP, theo cấp nhà học MẠNH NHẤT
+  var TAVERN_REGEN = { radius: 6, hpPerSecPerLevel: 1, enPerSecPerLevel: 2 }; // bán kính cố định; tốc độ hồi x cấp quán gần nhất
+  var WATCHTOWER_SLOW = { pct: 0.20, radiusByLevel: { 1: 8, 2: 10, 3: 12 } }; // chậm 20% — không cộng dồn giữa các tháp
 
   /* ---------------- Nâng cấp công trình (Mục 5) ----------------
      cost lên cấp lưu tại def.upgrades[level]; sản xuất xlevel (core.productionFor).
@@ -35,7 +59,13 @@
     barracks:  { 2: { wood: 25, gold: 20, food: 10 },    3: { wood: 40, gold: 35, food: 15, dark: 1 } },
     forge:     { 2: { wood: 20, gold: 25, dark: 1 },     3: { wood: 35, gold: 40, dark: 2 } },
     altar:     { 2: { wood: 25, gold: 30, dark: 2 },     3: { wood: 40, gold: 45, dark: 3 } },
-    darkmine:  { 2: { wood: 45, gold: 35, food: 10, dark: 1 }, 3: { wood: 60, gold: 50, food: 15, dark: 2 } }
+    darkmine:  { 2: { wood: 45, gold: 35, food: 10, dark: 1 }, 3: { wood: 60, gold: 50, food: 15, dark: 2 } },
+    market:    { 2: { wood: 30, gold: 20 },              3: { wood: 45, gold: 35, dark: 1 } },
+    windmill:  { 2: { wood: 35, gold: 15 },              3: { wood: 50, gold: 25, dark: 1 } },
+    shrine:    { 2: { wood: 20, gold: 15, dark: 2 },     3: { wood: 30, gold: 25, dark: 3 } },
+    tavern:    { 2: { wood: 25, gold: 10, food: 10 },    3: { wood: 40, gold: 20, food: 15 } },
+    library:   { 2: { wood: 30, gold: 25 },              3: { wood: 45, gold: 40, dark: 1 } },
+    watchtower:{ 2: { wood: 30, gold: 10 },              3: { wood: 45, gold: 20, dark: 1 } }
   };
   Object.keys(BUILDING_UPGRADES).forEach(function (id) { if (BUILDINGS[id]) BUILDINGS[id].upgrades = BUILDING_UPGRADES[id]; });
 
@@ -134,6 +164,9 @@
   return {
     RESOURCES: RESOURCES, RESOURCE_NAMES: RESOURCE_NAMES,
     BUILDINGS: BUILDINGS, ITEMS: ITEMS, LOOT_TABLE: LOOT_TABLE,
+    MARKET_TRADES: MARKET_TRADES, WINDMILL_FARM_BONUS: WINDMILL_FARM_BONUS,
+    SHRINE_LOOT_MULT: SHRINE_LOOT_MULT, LIBRARY_XP_BONUS: LIBRARY_XP_BONUS,
+    TAVERN_REGEN: TAVERN_REGEN, WATCHTOWER_SLOW: WATCHTOWER_SLOW,
     RARITIES: RARITIES, RARITY_NAMES: RARITY_NAMES, SLOTS: SLOTS, SLOT_NAMES: SLOT_NAMES,
     SKILLS: SKILLS, GEMS: GEMS, MAX_GEMS_PER_SKILL: MAX_GEMS_PER_SKILL,
     ENEMIES: ENEMIES, COMPANION: COMPANION, ORDERS: ORDERS, ORDER_NAMES: ORDER_NAMES, VILLAGE_EVENTS: VILLAGE_EVENTS,
