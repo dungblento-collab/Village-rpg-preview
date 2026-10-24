@@ -63,7 +63,17 @@ button { cursor:pointer; font-family:inherit; }
 .order-label { font-size:13px; text-shadow:0 1px 3px #000; }
 
 #build-bar { position:absolute; bottom:10px; left:50%; transform:translateX(-50%); z-index:11; background:rgba(10,20,30,.88); padding:10px; border-radius:12px; width:min(680px,94vw); }
-#build-list { display:flex; flex-wrap:wrap; gap:6px; justify-content:center; }
+#build-list { display:flex; flex-wrap:wrap; gap:6px; justify-content:center; max-height:52vh; overflow-y:auto; }
+/* Tab nhóm công trình (đợt mở rộng: 15 loại) */
+.build-tabs { display:flex; gap:6px; justify-content:center; width:100%; margin-bottom:4px; }
+.build-tab { padding:7px 14px; min-height:40px; border-radius:8px; border:1px solid rgba(255,255,255,.3); background:rgba(255,255,255,.06); color:#fff; font-size:13px; font-weight:700; }
+.build-tab.active { background:#2e7d32; border-color:#a5d6a7; }
+/* Overlay FPS (Cài đặt > Gameplay) */
+#fps-overlay { position:absolute; left:10px; bottom:10px; z-index:14; background:rgba(10,20,30,.78); border:1px solid rgba(255,255,255,.3); border-radius:8px; padding:4px 10px; font-size:13px; font-weight:800; color:#a5d6a7; pointer-events:none; }
+/* Panel Cài đặt: công tắc + thanh trượt đủ lớn cho chạm */
+#panel-body input[type="checkbox"] { width:22px; height:22px; accent-color:#2e7d32; flex:none; }
+#panel-body input[type="range"] { width:150px; accent-color:#2e7d32; }
+#btn-settings-start { font-size:15px; font-weight:700; padding:9px 22px; border-radius:10px; border:1px solid rgba(255,255,255,.5); background:rgba(255,255,255,.12); color:#fff; margin-top:6px; }
 .build-item { padding:8px 10px; border-radius:8px; border:2px solid rgba(255,255,255,.25); background:rgba(255,255,255,.08); color:#fff; font-size:12.5px; text-align:left; }
 .build-item.selected { border-color:#ffd54f; background:rgba(255,213,79,.18); }
 .build-item.locked, .build-item.cant { opacity:.45; }
