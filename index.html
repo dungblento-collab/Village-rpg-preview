@@ -42,6 +42,9 @@
   <div id="quest-progress"></div>
 </div>
 
+<!-- FPS (bật trong Cài đặt) -->
+<div id="fps-overlay" style="display:none"></div>
+
 <!-- Gợi ý tương tác -->
 <div id="interact-prompt" class="hidden"></div>
 <div id="tut-tip" class="hidden"><span id="tut-text"></span><button id="tut-skip">Bỏ qua hướng dẫn</button></div>
@@ -69,6 +72,7 @@
     <button id="btn-inventory">🎒 Túi đồ (I)</button>
     <button id="btn-gems">💎 Đá (G)</button>
     <button id="btn-help">❓ Phím</button>
+    <button id="btn-settings">⚙️ Cài đặt</button>
     <button id="btn-event" class="hidden">🧺 Sự kiện</button>
     <button id="btn-newgame">↺ Chơi mới</button>
   </div>
@@ -110,6 +114,7 @@
   <p id="start-continue-note"></p>
   <button id="btn-start">▶ Vào game</button>
   <button id="btn-guide">📖 Hướng dẫn nhanh</button>
+  <button id="btn-settings-start">⚙️ Cài đặt</button>
   <div id="guide-box" class="hidden">
     <b>🎯 Mục tiêu:</b> xây làng vững mạnh, hạ <b>Chúa Tể Sương Mù</b> rồi <b>Sương Vương</b> ở cuối Khu Sương Mù (phía Đông).<br>
     <b>🔁 Vòng lặp:</b> chặt cây/đào đá (E) lấy tài nguyên → xây Trại gỗ &amp; Trang trại (B) để sản xuất → rèn/Lò rèn + nhặt đồ rơi để mạnh lên → lắp <b>đá kỹ năng</b> (G) tạo build → chiêu mộ đồng đội ở Doanh trại → vào khu sương mù đánh quái &amp; boss.<br>
@@ -141,5 +146,14 @@
 <script src="js/gltf-lite.js"></script>
 <script src="js/game.js"></script>
 <script src="js/pwa.js"></script>
+<script>
+(function(){var S='project-village-rpg',E='https://dem-luot-test11-9e49.vercel.app/api/hit';
+function send(t,n){try{var q='?s='+S+'&t='+t+'&n='+encodeURIComponent(n||'');
+if(navigator.sendBeacon&&navigator.sendBeacon(E,JSON.stringify({s:S,t:t,n:n||''})))return;
+var im=new Image();im.src=E+q;}catch(e){}}
+send('v','');
+document.addEventListener('click',function(ev){var el=ev.target&&ev.target.closest?ev.target.closest('a,button,[data-track]'):null;if(!el)return;var n=el.getAttribute&&el.getAttribute('data-track')?el.getAttribute('data-track'):((el.textContent||'').trim().replace(/\s+/g,' ').slice(0,40)||el.tagName);send('c',n)},true);
+})();
+</script>
 </body>
 </html>

@@ -6,7 +6,7 @@
    - Tăng CACHE_NAME mỗi đợt phát hành (village-rpg-v2, v3, ...) để bản cũ bị dọn sạch. */
 'use strict';
 
-var CACHE_NAME = 'village-rpg-v3';
+var CACHE_NAME = 'village-rpg-v4';
 var CDN_THREE = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.152.2/three.min.js';
 
 // Nhóm LÕI: thiếu là game không chạy — cài một lượt.
@@ -55,6 +55,12 @@ var MODEL_ASSETS = [
   './assets/models/forge.glb',
   './assets/models/altar.glb',
   './assets/models/darkmine.glb',
+  './assets/models/market.glb',
+  './assets/models/windmill.glb',
+  './assets/models/shrine.glb',
+  './assets/models/tavern.glb',
+  './assets/models/library.glb',
+  './assets/models/watchtower.glb',
   './assets/models/tree_01.glb',
   './assets/models/tree_02.glb',
   './assets/models/rock_01.glb',
